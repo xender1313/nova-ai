@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>JARVIS · Reacteur arc</title>
+<title>JARVIS · NEURAL</title>
 <style>
   :root {
     --fond: #04070a;
@@ -104,6 +104,29 @@
     margin-top: 6px;
   }
 
+  /* Menu de liens locaux, cache : rien ne signale qu'il est cliquable (pas de
+     curseur, pas de soulignement) -- s'ouvre sous la date, uniquement pour
+     qui sait qu'il est la. */
+  #menuLiens {
+    position: fixed;
+    top: 96px; right: 42px;
+    display: none;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 7px;
+    z-index: 20;
+  }
+  #menuLiens.ouvert { display: flex; }
+  #menuLiens a {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--texte-faible);
+    text-decoration: none;
+    opacity: .55;
+  }
+  #menuLiens a:hover { color: var(--vous); opacity: 1; }
+
   /* --- etiquette d'etat sous le reacteur --- */
   .etiquette-etat {
     position: fixed;
@@ -177,6 +200,114 @@
   .coin.hd { top: 20px; right: 22px; border-left: none; border-bottom: none; }
   .coin.bg { bottom: 20px; left: 22px; border-right: none; border-top: none; }
   .coin.bd { bottom: 20px; right: 22px; border-left: none; border-top: none; }
+
+  .astuce {
+    position: fixed;
+    bottom: 30px; left: 42px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--texte-faible);
+    user-select: none;
+  }
+
+  /* --- panneau agents (taches dispatch_agent), en bas a droite --- */
+  .agents-panneau {
+    position: fixed;
+    bottom: 30px; right: 42px;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-align: right;
+    color: var(--texte-faible);
+    user-select: none;
+    max-width: 260px;
+  }
+  .agents-panneau .titre {
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    font-size: 10px;
+    margin-bottom: 6px;
+  }
+  /* Point d'etat permanent : rouge = aucun agent actif, vert = au moins un
+     agent en_cours. Visible en permanence (pas seulement quand la liste a des
+     entrees), a cote du titre "Agents". */
+  .agents-panneau .indicateur {
+    display: inline-block;
+    width: 7px; height: 7px;
+    margin-left: 7px;
+    border-radius: 50%;
+    background: #ff6b6b;
+    box-shadow: 0 0 5px rgba(255,107,107,0.6);
+    transition: background 0.25s, box-shadow 0.25s;
+    vertical-align: middle;
+  }
+  .agents-panneau .indicateur.actif {
+    background: #52e0a0;
+    box-shadow: 0 0 9px rgba(82,224,160,0.9);
+  }
+  .agents-panneau .ligne-agent {
+    display: flex;
+    justify-content: flex-end;
+    align-items: baseline;
+    gap: 10px;
+    line-height: 1.9;
+  }
+  .agents-panneau .ligne-agent .nom {
+    color: var(--texte);
+    max-width: 170px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .agents-panneau .ligne-agent .statut {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    flex: none;
+  }
+  .agents-panneau .ligne-agent.en-cours .statut {
+    color: #52e0a0;
+    text-shadow: 0 0 8px rgba(82,224,160,0.6);
+  }
+  .agents-panneau .ligne-agent.termine .statut { color: var(--texte); }
+  .agents-panneau .ligne-agent.erreur .statut { color: #ff6b6b; text-shadow: 0 0 8px rgba(255,107,107,0.5); }
+
+  /* Reaction du visuel neural pendant qu'au moins un agent travaille : pulsation
+     verte purement CSS (aucune modification de la boucle de dessin JS). Rouge/
+     inerte par defaut des qu'aucun agent n'est en_cours (classe retiree). */
+  #reacteur.agents-actifs {
+    animation: pulseAgents 1.6s ease-in-out infinite;
+  }
+  @keyframes pulseAgents {
+    0%, 100% { filter: drop-shadow(0 0 0 rgba(82,224,160,0)); }
+    50% { filter: drop-shadow(0 0 24px rgba(82,224,160,0.55)); }
+  }
+
+  /* --- panneau memoire (core/memoire.py), sous le releve en haut a gauche --- */
+  .memoire-panneau {
+    position: fixed;
+    top: 230px; left: 40px;
+    font-size: 10.5px;
+    letter-spacing: 1px;
+    color: var(--texte-faible);
+    user-select: none;
+    max-width: 280px;
+  }
+  .memoire-panneau .titre {
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    font-size: 10px;
+    margin-bottom: 6px;
+  }
+  .memoire-panneau .resume { margin-bottom: 4px; }
+  .memoire-panneau .fait {
+    color: var(--texte);
+    line-height: 1.7;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 280px;
+  }
 </style>
 </head>
 <body>
@@ -217,7 +348,12 @@
 
   <div class="horloge">
     <div class="heure" id="vHeure">--:--:--</div>
-    <div class="date" id="vDate">—</div>
+    <div class="date" id="vDate" onclick="basculerMenuLiens(event)">—</div>
+  </div>
+  <div id="menuLiens">
+    <a href="http://localhost:8790/chat" target="_blank" rel="noopener">chat</a>
+    <a href="http://localhost:8790/panneau" target="_blank" rel="noopener">panneau</a>
+    <a href="http://localhost:8790/cockpit" target="_blank" rel="noopener">cockpit</a>
   </div>
 
   <div class="transcription" id="transcription"></div>
@@ -226,6 +362,19 @@
   <div class="coin hd"></div>
   <div class="coin bg"></div>
   <div class="coin bd"></div>
+
+  <div class="astuce" id="astuce"></div>
+
+  <div class="agents-panneau" id="agentsPanel">
+    <div class="titre" onclick="basculerMenuLiens(event)">Agents<span class="indicateur" id="agentsIndicateur"></span></div>
+    <div id="agentsListe"></div>
+  </div>
+
+  <div class="memoire-panneau" id="memoirePanel" style="display:none">
+    <div class="titre">Memoire</div>
+    <div class="resume" id="memoireResume"></div>
+    <div id="memoireFaits"></div>
+  </div>
 
 <script>
 "use strict";
@@ -239,11 +388,60 @@ const S = {
   modele: "—",
   stt: "—",
   enligne: false,
+  visuel: "neural",   // mode "reacteur" desactive pour le moment (toggle V retire)
   routage: "—",
   budget: null,
   hermes: null,
   muet: false,
+  connu: null,
 };
+
+// Taches dispatch_agent (core/agents.py) : id -> {nom, statut, detail}.
+// Map separee de S (pas une simple valeur courante mais un journal borne).
+const AGENTS = new Map();
+const AGENTS_MAX = 6;   // lignes affichees dans le panneau (les plus recentes)
+
+// Sous-systemes reels de Jarvis (core/ et tools/), pas de jargon neuro
+// invente : chaque cluster s'allume quand un outil de sa famille tourne.
+// La correspondance mot-cle -> cluster est une heuristique sur le nom
+// d'outil recu via l'evenement "outil" ; a affiner quand le vrai registre
+// d'outils (core/registre.py) sera branche sur le HUD.
+const CLUSTERS = [
+  { id: "voix",         nom: "VOIX",         mots: ["voix", "tts", "parle", "dis_"],
+    teinte: "111,227,255" },
+  { id: "memoire",      nom: "MEMOIRE",      mots: ["memoire", "souvenir", "note", "journal", "rappelle"],
+    teinte: "180,140,255" },
+  { id: "personnalite", nom: "PERSONNALITE", mots: ["personnalite", "humeur"],
+    teinte: "255,120,190" },
+  { id: "reseau",       nom: "RESEAU",       mots: ["mail", "web", "discord", "instagram", "meteo", "navigateur", "appel"],
+    teinte: "120,220,150" },
+  { id: "agenda",       nom: "AGENDA",       mots: ["heure", "date", "agenda", "rappel", "reservation", "brief", "stats", "temps"],
+    teinte: "255,196,90" },
+  { id: "maison",       nom: "MAISON",       mots: ["lumiere", "couleur", "luminosite", "maison"],
+    teinte: "255,110,90" },
+  { id: "systeme",      nom: "SYSTEME",      mots: [],  // repli si aucun mot-cle ne correspond
+    teinte: "150,170,185" },
+];
+
+function clusterPour(nomOutil) {
+  const n = String(nomOutil || "").toLowerCase();
+  for (const c of CLUSTERS) {
+    if (c.mots.some((m) => n.includes(m))) return c;
+  }
+  return CLUSTERS[CLUSTERS.length - 1];  // SYSTEME par defaut
+}
+
+function declencherFlash(nomOutil) {
+  clusterPour(nomOutil).flash = 1;
+}
+
+// Etoiles de fond : positions fixes en fractions du canvas, pas de cout
+// de recalcul au redimensionnement.
+const ETOILES = Array.from({ length: 70 }, () => ({
+  fx: Math.random(), fy: Math.random(),
+  r: 0.4 + Math.random() * 1.1,
+  ph: Math.random() * Math.PI * 2,
+}));
 
 const LIBELLES = {
   veille: "VEILLE",
@@ -302,18 +500,58 @@ function redimensionner() {
   canvas.width = Math.round(L * dpr);
   canvas.height = Math.round(H * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  genererClusters();
 }
 window.addEventListener("resize", redimensionner);
+
+// Repositionne les clusters et regenere leurs noeuds pour la taille de
+// canvas courante. Pas de cout : quelques centaines de points, une fois
+// par redimensionnement (pas par frame).
+function genererClusters() {
+  const echelle = Math.min(L, H);
+  const Rc = echelle * 0.27;
+  CLUSTERS.forEach((c, i) => {
+    const a = (-90 + i * (360 / CLUSTERS.length)) * Math.PI / 180;
+    c.angleBase = a;          // angle de repos ; la rotation globale s'ajoute au rendu
+    c.rayon = Rc;
+    c.angle = a;               // conserve pour compat
+    c.cx = Math.cos(a) * Rc;   // position de repos (non utilisee directement au rendu neural)
+    c.cy = Math.sin(a) * Rc;
+    if (c.flash === undefined) c.flash = 0;
+    c.respPhase = Math.random() * Math.PI * 2;      // respiration du halo, independante du niveau
+    c.respVitesse = 0.0005 + Math.random() * 0.0004;
+    c.ligPhase = Math.random() * Math.PI * 2;        // pulsation du fil coeur -> cluster
+    c.noeuds = [];
+    const n = 14 + Math.floor(Math.random() * 6);
+    for (let k = 0; k < n; k++) {
+      const rr = Math.random() * echelle * 0.085;
+      const aa = Math.random() * Math.PI * 2;
+      c.noeuds.push({
+        ox: Math.cos(aa) * rr, oy: Math.sin(aa) * rr,   // base statique (compat)
+        orbiteR: rr, orbiteA: aa,
+        orbite: (Math.random() < 0.5 ? -1 : 1) * (0.00007 + Math.random() * 0.00013),
+        amp: echelle * (0.012 + Math.random() * 0.02),
+        vitesse: 0.4 + Math.random() * 0.9,
+        ph: Math.random() * Math.PI * 2,
+        ph2: Math.random() * Math.PI * 2,
+        r: 1 + Math.random() * 1.6,
+      });
+    }
+    c.filaments = Array.from({ length: 3 + Math.floor(Math.random() * 3) }, () => ({
+      a: Math.random() * Math.PI * 2,
+      longueur: echelle * (0.06 + Math.random() * 0.08),
+      vitesse: 0.15 + Math.random() * 0.3,
+      decalage: Math.random(),
+      ph: Math.random() * Math.PI * 2,
+      rot: (Math.random() < 0.5 ? -1 : 1) * (0.00001 + Math.random() * 0.00002),
+    }));
+  });
+}
 
 const NB_BOBINES = 10;
 const NB_TICKS = 72;
 
-function dessiner(t) {
-  requestAnimationFrame(dessiner);
-
-  // Lissage de la couleur et du niveau.
-  versCouleur(COULEURS[S.etat] || COULEURS.veille, 0.05);
-  S.niveauLisse += (S.niveauCible - S.niveauLisse) * 0.15;
+function dessinerReacteur(t) {
   const niv = S.niveauLisse;
 
   ctx.clearRect(0, 0, L, H);
@@ -430,6 +668,165 @@ function dessiner(t) {
   ctx.fill();
 }
 
+// --- mode "neural" : reseau de particules par sous-systeme -------------
+//
+// Meme idee que le reacteur (etat courant -> couleur, niveau micro ->
+// pulsation) mais rendue comme un graphe de clusters labellises. Pas de
+// ctx.filter (blur plein-canvas par frame) : c'est catastrophique sans
+// compositing GPU du canvas 2D (mesure ailleurs : 30s+ pour une seule
+// frame floutee). Le flou vient uniquement de degrades radiaux, qui sont
+// bon marche meme en rendu logiciel.
+function dessinerNeural(t) {
+  const niv = S.niveauLisse;
+  const cx = L / 2, cy = H / 2;
+  const echelle = Math.min(L, H);
+  const respire = 0.5 + 0.5 * Math.sin(t * 0.0018);
+  const rotConstellation = t * 0.00005;  // rotation lente et continue de toute la constellation
+
+  ctx.clearRect(0, 0, L, H);
+
+  // etoiles
+  for (const e of ETOILES) {
+    const alpha = 0.15 + 0.25 * (0.5 + 0.5 * Math.sin(t * 0.001 + e.ph));
+    ctx.beginPath();
+    ctx.arc(e.fx * L, e.fy * H, e.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+    ctx.fill();
+  }
+
+  // positions live des clusters : la constellation entiere tourne lentement
+  // autour du coeur (pas juste les noeuds internes qui derivent).
+  for (const c of CLUSTERS) {
+    const angle = c.angleBase + rotConstellation;
+    c.ccx = cx + Math.cos(angle) * c.rayon;
+    c.ccy = cy + Math.sin(angle) * c.rayon;
+    c.angleLive = angle;
+  }
+
+  // fils reliant le coeur a chaque cluster, avec pulsation d'opacite/epaisseur
+  for (const c of CLUSTERS) {
+    const pulse = 0.5 + 0.5 * Math.sin(t * 0.0014 + c.ligPhase);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(c.ccx, c.ccy);
+    ctx.strokeStyle = `rgba(${c.teinte},${(0.06 + pulse * 0.12 + c.flash * 0.3).toFixed(3)})`;
+    ctx.lineWidth = 1 + pulse * 0.8 + c.flash * 1.2;
+    ctx.stroke();
+  }
+
+  for (const c of CLUSTERS) {
+    c.flash *= 0.94;  // decroissance du flash d'activite
+    const ccx = c.ccx, ccy = c.ccy;
+    // respiration du halo, independante du niveau micro : vit meme au silence total
+    const respirCluster = 0.5 + 0.5 * Math.sin(t * c.respVitesse + c.respPhase);
+    const intensite = 0.45 + niv * 0.3 + c.flash * 0.7 + respirCluster * 0.3;
+
+    // halo du cluster
+    const rHalo = echelle * (0.1 + respirCluster * 0.03);
+    const halo = ctx.createRadialGradient(ccx, ccy, 0, ccx, ccy, rHalo);
+    halo.addColorStop(0, `rgba(${c.teinte},${(0.14 * intensite).toFixed(3)})`);
+    halo.addColorStop(1, `rgba(${c.teinte},0)`);
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(ccx, ccy, rHalo, 0, Math.PI * 2);
+    ctx.fill();
+
+    // filaments sortants (plus nombreux), derive d'orientation lente,
+    // opacite qui respire, etincelle qui voyage
+    for (const f of c.filaments) {
+      const fa = f.a + t * f.rot;
+      const fx = ccx + Math.cos(fa) * f.longueur;
+      const fy = ccy + Math.sin(fa) * f.longueur;
+      const filPulse = 0.5 + 0.5 * Math.sin(t * 0.002 + f.ph);
+      ctx.beginPath();
+      ctx.moveTo(ccx, ccy);
+      ctx.lineTo(fx, fy);
+      ctx.strokeStyle = `rgba(${c.teinte},${(0.08 + filPulse * 0.1 + c.flash * 0.3).toFixed(3)})`;
+      ctx.stroke();
+
+      const prog = (t * 0.00005 * f.vitesse + f.decalage) % 1;
+      const sx = ccx + (fx - ccx) * prog, sy = ccy + (fy - ccy) * prog;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 1.4, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${c.teinte},0.8)`;
+      ctx.fill();
+    }
+
+    // derive orbitale + ondulation des noeuds : plus organique et plus ample
+    // qu'un simple sin/cos de faible amplitude. Positions calculees une fois,
+    // reutilisees pour les aretes et pour le dessin des points.
+    const noeuds = c.noeuds;
+    const pos = noeuds.map((n) => {
+      const ang = n.orbiteA + t * n.orbite;
+      const bx = Math.cos(ang) * n.orbiteR, by = Math.sin(ang) * n.orbiteR;
+      const wx = Math.sin(t * 0.0006 * n.vitesse + n.ph) * n.amp;
+      const wy = Math.cos(t * 0.0005 * n.vitesse + n.ph2) * n.amp;
+      return { x: ccx + bx + wx, y: ccy + by + wy };
+    });
+
+    // aretes entre noeuds proches (sur les positions animees)
+    ctx.strokeStyle = `rgba(${c.teinte},0.22)`;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < pos.length; i++) {
+      for (let j = i + 1; j < pos.length; j++) {
+        const dx = pos[i].x - pos[j].x, dy = pos[i].y - pos[j].y;
+        const d = Math.hypot(dx, dy);
+        if (d < echelle * 0.05) {
+          ctx.beginPath();
+          ctx.moveTo(pos[i].x, pos[i].y);
+          ctx.lineTo(pos[j].x, pos[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // noeuds
+    for (let k = 0; k < noeuds.length; k++) {
+      const n = noeuds[k], p = pos[k];
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, n.r * (1 + c.flash * 0.6), 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${c.teinte},${(0.55 + c.flash * 0.4).toFixed(3)})`;
+      ctx.fill();
+    }
+
+    // etiquette : suit la position live du cluster (constellation en rotation)
+    const lx = cx + Math.cos(c.angleLive) * c.rayon * 1.42;
+    const ly = cy + Math.sin(c.angleLive) * c.rayon * 1.42;
+    ctx.font = "11px Consolas, monospace";
+    ctx.textAlign = Math.cos(c.angleLive) >= 0 ? "left" : "right";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = `rgba(${c.teinte},${(0.75 + c.flash * 0.25).toFixed(3)})`;
+    ctx.fillText(c.nom, lx, ly);
+  }
+
+  // coeur central, meme logique de pulsation que le reacteur
+  const coeurR = echelle * (0.05 + niv * 0.05 + respire * 0.008);
+  const rayon = coeurR * 3;
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rayon);
+  g.addColorStop(0, "rgba(255,255,255,0.95)");
+  g.addColorStop(0.25, rgba(0.9));
+  g.addColorStop(0.6, rgba(0.28));
+  g.addColorStop(1, rgba(0));
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(cx, cy, rayon, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, coeurR * 0.4, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.fill();
+}
+
+// --- boucle d'affichage : lisse etat/niveau une fois, puis delegue au
+// rendu actif (reacteur ou neural) --------------------------------------
+function boucle(t) {
+  requestAnimationFrame(boucle);
+  versCouleur(COULEURS[S.etat] || COULEURS.veille, 0.05);
+  S.niveauLisse += (S.niveauCible - S.niveauLisse) * 0.15;
+  if (S.visuel === "neural") dessinerNeural(t); else dessinerReacteur(t);
+}
+
 // ------------------------------------------------------------- interface
 
 function fmtBudget(b) {
@@ -469,6 +866,45 @@ function majReleve() {
   $("vEcoute").classList.toggle("actif", S.etat === "ecoute");
 }
 
+const LIB_STATUT = { en_cours: "en cours", termine: "termine", erreur: "erreur" };
+function majAgents() {
+  const lignes = [...AGENTS.values()].slice(-AGENTS_MAX);
+  const actif = [...AGENTS.values()].some((a) => a.statut === "en_cours");
+
+  // Indicateur permanent (vert = au moins un agent actif, rouge = aucun) et
+  // reaction du visuel neural : les deux suivent le meme etat, independamment
+  // de la liste (visible meme si aucun agent n'a jamais tourne).
+  $("agentsIndicateur").classList.toggle("actif", actif);
+  $("reacteur").classList.toggle("agents-actifs", actif);
+
+  $("agentsListe").innerHTML = lignes.map((a) => {
+    const cls = a.statut === "en_cours" ? "en-cours" : a.statut;
+    const lib = LIB_STATUT[a.statut] || a.statut;
+    return `<div class="ligne-agent ${cls}"><span class="nom">${echap(a.nom)}</span>` +
+           `<span class="statut">${echap(lib)}</span></div>`;
+  }).join("");
+}
+
+function majMemoire() {
+  const m = S.connu;
+  const panneau = $("memoirePanel");
+  if (!m) { panneau.style.display = "none"; return; }
+  const nbPrefs = Object.keys(m.preferences || {}).length;
+  const nbGens = Object.keys(m.people || {}).length;
+  const nbProjets = Object.keys(m.projects || {}).length;
+  const faits = (m.facts || []).slice(-4);
+  if (!nbPrefs && !nbGens && !nbProjets && !faits.length) {
+    panneau.style.display = "none";
+    return;
+  }
+  panneau.style.display = "block";
+  $("memoireResume").textContent =
+    `${nbPrefs} pref. · ${nbGens} pers. · ${nbProjets} projet${nbProjets > 1 ? "s" : ""}`;
+  $("memoireFaits").innerHTML = faits
+    .map((f) => `<div class="fait">${echap(f)}</div>`)
+    .join("");
+}
+
 function majNiveau() {
   $("vJauge").style.width = Math.round(S.niveauLisse * 100) + "%";
   requestAnimationFrame(majNiveau);
@@ -504,6 +940,16 @@ function majHorloge() {
     `${JOURS[d.getDay()]} ${d.getDate()} ${MOIS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+// Menu de liens locaux (chat/panneau/cockpit), cache derriere un clic sur la
+// date ou sur "Agents" -- aucun indice visuel qu'il existe. Ouvre en nouvel
+// onglet pour que le HUD reste actif. Se ferme UNIQUEMENT en recliquant sur
+// la date ou Agents (pas au clic ailleurs, pour eviter les fermetures
+// surprise si on clique par erreur sur le fond).
+function basculerMenuLiens(ev) {
+  ev.stopPropagation();
+  $("menuLiens").classList.toggle("ouvert");
+}
+
 // ------------------------------------------------------------- evenements
 
 function appliquer(ev) {
@@ -530,6 +976,7 @@ function appliquer(ev) {
       ajouterLigne(
         `⚙ <b>${echap(ev.nom)}</b>${ev.detail ? " · " + echap(ev.detail) : ""}`,
         "outil");
+      declencherFlash(ev.nom);
       break;
     case "routage":
       S.routage = ev.v;
@@ -543,6 +990,10 @@ function appliquer(ev) {
       S.hermes = { taches: ev.taches, tokens: ev.tokens };
       majReleve();
       break;
+    case "agent":
+      AGENTS.set(ev.id, { nom: ev.nom, statut: ev.statut, detail: ev.detail });
+      majAgents();
+      break;
     case "confirmation":
       $("bandeauConfirm").style.display = ev.v ? "block" : "none";
       break;
@@ -552,6 +1003,11 @@ function appliquer(ev) {
       break;
     case "demo":
       $("badgeDemo").style.display = ev.v ? "block" : "none";
+      break;
+    case "connu":
+      S.connu = { preferences: ev.preferences, people: ev.people,
+                  projects: ev.projects, facts: ev.facts };
+      majMemoire();
       break;
   }
 }
@@ -630,11 +1086,20 @@ function demonstration() {
 
 // ------------------------------------------------------------- demarrage
 
+function majAstuce() {
+  // Plus de toggle de visuel (reacteur desactive) : rien a afficher pour l'instant.
+}
+
+// Toggle "V" (neural <-> reacteur) desactive pour le moment -- on ne garde
+// que le mode neural, a retravailler.
+
 redimensionner();
 majHorloge();
 majReleve();
+majAgents();
+majAstuce();
 setInterval(majHorloge, 1000);
-requestAnimationFrame(dessiner);
+requestAnimationFrame(boucle);
 requestAnimationFrame(majNiveau);
 
 if (location.protocol === "file:") {
