@@ -60,6 +60,21 @@ def app():
         except Exception:
             LOG.exception("montage du cockpit")
         try:
+            from core.inventaire_api import monter_routes as monter_inventaire
+            monter_inventaire(_APP)               # /api/inventaire (section 9.2, 1ere tranche)
+        except Exception:
+            LOG.exception("montage de l'API inventaire")
+        try:
+            from core.chat_api import monter_routes as monter_chat
+            monter_chat(_APP)                     # /chat + /api/chat (LOCAL uniquement)
+        except Exception:
+            LOG.exception("montage du chat texte")
+        try:
+            from core.apps_api import monter_routes as monter_apps
+            monter_apps(_APP)                     # /api/apps (onglet App du chat, LOCAL uniquement)
+        except Exception:
+            LOG.exception("montage de l'API apps")
+        try:
             from tools.appel_direct import monter_ws
             monter_ws(_APP)                        # /stream (Twilio Media Streams)
         except Exception:
