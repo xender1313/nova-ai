@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis — Chat</title>
+<style>
+  :root{
+    --bg:#0a0c10; --card:#12151c; --card2:#171b24; --bord:#242a36;
+    --txt:#e6e8ec; --dim:#8b93a3; --acc:#6fe3ff; --acc-dim:rgba(111,227,255,.14);
+    --ok:#3ecf8e; --ko:#ff6b6b; --warn:#f5b942;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(111,227,255,.07), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(150,110,255,.05), transparent 55%),
+      var(--bg);
+    color:var(--txt);height:100vh;display:flex;flex-direction:column;
+    font:14px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+
+  header{padding:16px 22px;border-bottom:1px solid var(--bord);
+    display:flex;align-items:center;gap:18px;background:rgba(18,21,28,.5);
+    backdrop-filter:blur(6px)}
+  @property --angle{syntax:'<angle>';initial-value:0deg;inherits:false}
+  @keyframes tourner{to{--angle:360deg}}
+
+  .coeur-nova{width:22px;height:22px;border-radius:50%;flex-shrink:0;
+    background:radial-gradient(circle at 50% 50%, #fff 0%, rgba(111,227,255,.95) 25%,
+      rgba(111,227,255,.35) 55%, transparent 75%);
+    animation:respire-coeur 2.6s ease-in-out infinite}
+  @keyframes respire-coeur{
+    0%,100%{transform:scale(1);opacity:.85}
+    50%{transform:scale(1.2);opacity:1}
+  }
+
+  .pill{font-size:11px;padding:2px 9px;border-radius:999px;background:#173a2a;color:#7ee2b0;
+    white-space:nowrap}
+
+  nav.onglets{display:flex;gap:4px;background:var(--card);border:1px solid var(--bord);
+    border-radius:10px;padding:3px}
+  nav.onglets button{position:relative;background:transparent;border:none;color:var(--dim);
+    padding:6px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;
+    transition:color .15s,background .15s;z-index:0}
+  nav.onglets button.actif{background:var(--acc-dim);color:var(--acc)}
+  nav.onglets button:not(.actif):hover{color:var(--txt)}
+
+  /* neon rotatif : anneau conique qui tourne autour de la bulle active, visible
+     uniquement en bordure via le masque "exclude" (le centre est evide). */
+  nav.onglets button.actif::before{
+    content:'';position:absolute;inset:-3px;border-radius:10px;padding:2px;z-index:-1;
+    background:conic-gradient(from var(--angle),
+      transparent 0deg, var(--acc) 25deg, #fff 45deg, var(--acc) 65deg, transparent 110deg,
+      transparent 360deg);
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor;
+    mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite:exclude;
+    animation:tourner 2.2s linear infinite;
+  }
+  /* halo diffus derriere l'anneau, meme rotation, plus flou -> effet "neon" */
+  nav.onglets button.actif::after{
+    content:'';position:absolute;inset:-6px;border-radius:12px;z-index:-2;
+    background:conic-gradient(from var(--angle),
+      transparent 0deg, rgba(111,227,255,.55) 25deg, rgba(255,255,255,.6) 45deg,
+      rgba(111,227,255,.55) 65deg, transparent 110deg, transparent 360deg);
+    filter:blur(5px);
+    animation:tourner 2.2s linear infinite;
+  }
+
+  #explication{margin-left:auto;max-width:340px;text-align:right;color:var(--dim);
+    font-size:11.5px;line-height:1.45}
+  #explication code{background:var(--card2);padding:1px 5px;border-radius:4px;color:var(--acc)}
+
+  .panel{flex:1;min-height:0;overflow-y:auto;display:none}
+  .panel.actif{display:flex;flex-direction:column}
+
+  /* --- panneau Chat (logique inchangee) --- */
+  #fil{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:12px}
+  .msg{max-width:72%;padding:10px 13px;border-radius:12px;white-space:pre-wrap;word-wrap:break-word;
+    font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.5}
+  .msg.moi{align-self:flex-end;background:linear-gradient(135deg,#2f6fe0,#5b8cff);color:#fff;
+    border-bottom-right-radius:3px}
+  .msg.jarvis{align-self:flex-start;background:var(--card);border:1px solid var(--bord);
+    border-bottom-left-radius:3px}
+  .msg.systeme{align-self:center;background:transparent;color:var(--dim);font-size:12px;
+    border:1px dashed var(--bord)}
+  .msg.confirmation{align-self:flex-start;background:#2a2410;border:1px solid #5a4a12;color:#e9cf7a}
+  .msg.erreur{align-self:flex-start;background:#3a1c1c;border:1px solid #5a2020;color:#ff9a9a}
+  form#form{display:flex;gap:10px;padding:16px 20px;border-top:1px solid var(--bord);background:var(--bg)}
+  input#entree{flex:1;background:var(--card2);border:1px solid var(--bord);color:var(--txt);
+    border-radius:10px;padding:12px 14px;font-size:14px;font-family:inherit}
+  input#entree:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-dim)}
+  button{background:linear-gradient(135deg,#2f6fe0,var(--acc));color:#08131a;border:none;
+    border-radius:10px;padding:0 20px;cursor:pointer;font-size:14px;font-weight:600}
+  button:disabled{opacity:.5;cursor:default}
+  button.ghost{background:transparent;border:1px solid var(--bord);color:var(--dim);font-weight:400}
+  button.ghost:hover{border-color:var(--acc);color:var(--acc)}
+  code{background:var(--card2);padding:1px 5px;border-radius:4px}
+
+  .carte{background:var(--card);border:1px solid var(--bord);border-radius:14px;overflow:hidden}
+  #liste-msg{font-size:12px;color:var(--dim);padding:0 16px 14px}
+  #liste-msg.ok{color:var(--ok)}
+  #liste-msg.erreur{color:var(--ko)}
+
+  /* --- panneau Liste : grille de tuiles (nouveau) --- */
+  #panel-liste{padding:22px;gap:12px}
+  .grille{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+  .tuile{position:relative;aspect-ratio:1.7;border-radius:12px;background:var(--card);
+    border:1px solid var(--bord);display:flex;align-items:center;justify-content:center;
+    padding:10px;text-align:center;transition:border-color .15s}
+  .tuile:hover{border-color:var(--acc)}
+  .tuile.manquant{opacity:.4}
+  .tuile-nom{font-weight:600;font-size:13px;line-height:1.3;word-break:break-word;
+    transition:opacity .15s}
+  .tuile:hover .tuile-nom{opacity:0}
+  .tuile-badge{position:absolute;bottom:7px;left:8px;right:8px;text-align:center;
+    font-size:9.5px;letter-spacing:.03em;text-transform:uppercase;color:var(--ko);
+    transition:opacity .15s}
+  .tuile:hover .tuile-badge{opacity:0}
+  .tuile-hover{position:absolute;inset:0;border-radius:12px;overflow:hidden;
+    display:flex;flex-direction:column;
+    background:rgba(10,12,16,.88);opacity:0;transition:opacity .15s}
+  .tuile:hover .tuile-hover{opacity:1}
+
+  /* anneau neon rotatif au survol, meme technique que les onglets de nav */
+  .tuile:hover::before{
+    content:'';position:absolute;inset:-3px;border-radius:14px;padding:2px;z-index:2;
+    background:conic-gradient(from var(--angle),
+      transparent 0deg, var(--acc) 25deg, #fff 45deg, var(--acc) 65deg, transparent 110deg,
+      transparent 360deg);
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor;
+    mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite:exclude;
+    animation:tourner 2.2s linear infinite;
+    pointer-events:none;
+  }
+  .tuile:hover::after{
+    content:'';position:absolute;inset:-5px;border-radius:16px;padding:6px;z-index:1;
+    opacity:.8;
+    background:conic-gradient(from var(--angle),
+      transparent 0deg, rgba(111,227,255,.6) 25deg, rgba(255,255,255,.65) 45deg,
+      rgba(111,227,255,.6) 65deg, transparent 110deg, transparent 360deg);
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor;
+    mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite:exclude;
+    filter:blur(5px);
+    animation:tourner 2.2s linear infinite;
+    pointer-events:none;
+  }
+  .tuile-action{flex:1;background:transparent;border:none;font-weight:600;font-size:12.5px;
+    cursor:pointer;width:100%}
+  .tuile-action.suppr{color:#ffb3b3;border-bottom:1px solid var(--bord)}
+  .tuile-action.suppr:hover{background:rgba(255,107,107,.14)}
+  .tuile-action.modif{color:var(--acc)}
+  .tuile-action.modif:hover{background:var(--acc-dim)}
+  @media (max-width:1100px){.grille{grid-template-columns:repeat(4,1fr)}}
+  @media (max-width:800px){.grille{grid-template-columns:repeat(3,1fr)}}
+
+  /* --- panneau Scripts : recherche d'apps/jeux installes (nouveau) --- */
+  #panel-scripts{padding:22px;gap:14px}
+  #recherche-app{padding:14px 16px}
+  #recherche-app .ligne{display:flex;align-items:center;gap:14px}
+  #recherche-corps{display:flex;flex-direction:column;gap:6px}
+  .candidat{display:flex;align-items:center;gap:12px;background:var(--card);
+    border:1px solid var(--bord);border-radius:10px;padding:9px 14px}
+  .candidat-source{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;
+    color:var(--acc);background:var(--acc-dim);border-radius:999px;padding:2px 8px;
+    white-space:nowrap;flex-shrink:0}
+  .candidat-nom{font-weight:600;font-size:13px;flex:1;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .candidat-chemin{font-size:11px;color:var(--dim);font-family:ui-monospace,Consolas,monospace;
+    flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .candidat-ajouter{flex-shrink:0}
+  #scripts-msg{font-size:12px;color:var(--dim)}
+  #scripts-msg.ok{color:var(--ok)}
+  #scripts-msg.erreur{color:var(--ko)}
+</style>
+</head>
+<body>
+<header>
+  <div class="coeur-nova" title="Nova"></div>
+  <span class="pill">local uniquement</span>
+  <nav class="onglets">
+    <button id="onglet-chat" class="actif" onclick="afficherOnglet('chat')">Chat</button>
+    <button id="onglet-liste" onclick="afficherOnglet('liste')">Liste</button>
+    <button id="onglet-scripts" onclick="afficherOnglet('scripts')">Research</button>
+  </nav>
+  <div id="explication"></div>
+</header>
+
+<div id="panel-chat" class="panel actif">
+  <div id="fil"></div>
+  <form id="form">
+    <input id="entree" type="text" autocomplete="off" placeholder="Ecris un message..." autofocus>
+    <button id="envoyer" type="submit">Envoyer</button>
+    <button type="button" class="ghost" onclick="reinitialiser()">Nouvelle conversation</button>
+  </form>
+</div>
+
+<div id="panel-liste" class="panel">
+  <div id="apps-corps" class="grille"></div>
+  <div id="liste-msg"></div>
+</div>
+
+<div id="panel-scripts" class="panel">
+  <div class="carte" id="recherche-app">
+    <div class="ligne">
+      <button type="button" id="btn-rechercher" onclick="lancerRecherche()">Rechercher</button>
+      <span id="recherche-statut" style="color:var(--dim);font-size:12px"></span>
+    </div>
+  </div>
+  <div id="recherche-corps"></div>
+  <div id="scripts-msg"></div>
+</div>
+
+<script>
+const EXPLICATIONS = {
+  chat: 'Jarvis ne comprend pas quand tu lappel, ecrie lui le temp de regler le souci .',
+  liste: 'Toutes tes apps/jeux deja enregistres. Modifie un chemin puis valide (✓), ou supprime (✕) -- ca retire l\'entree de <code>config.yaml</code>.',
+  scripts: 'Recherche les jeux/apps deja installes sur ce PC (Steam, Epic Games, menu Demarrer) et propose de les ajouter -- une fois ajoutes, ils apparaissent dans <b>Liste</b>.',
+};
+const ONGLETS = ['chat', 'liste', 'scripts'];
+
+function afficherOnglet(nom){
+  for (const o of ONGLETS) {
+    document.getElementById('onglet-' + o).classList.toggle('actif', o === nom);
+    document.getElementById('panel-' + o).classList.toggle('actif', o === nom);
+  }
+  document.getElementById('explication').innerHTML = EXPLICATIONS[nom];
+  if (nom === 'liste') chargerApps();
+}
+
+/* ============================================================ onglet Chat
+   (logique identique a avant, non modifiee) */
+
+const fil = document.getElementById('fil');
+const form = document.getElementById('form');
+const entree = document.getElementById('entree');
+const bouton = document.getElementById('envoyer');
+
+function ajouter(texte, classe){
+  const d = document.createElement('div');
+  d.className = 'msg ' + classe;
+  d.textContent = texte;
+  fil.appendChild(d);
+  fil.scrollTop = fil.scrollHeight;
+  return d;
+}
+
+async function envoyer(message){
+  const r = await fetch('/api/chat', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({message}),
+  });
+  let data;
+  try { data = await r.json(); } catch(e) { data = null; }
+  if (r.status === 403) {
+    ajouter((data && data.message) || 'Acces refuse : ce chat est local uniquement.', 'erreur');
+    return;
+  }
+  if (!data) {
+    ajouter('Erreur : reponse invalide du serveur (' + r.status + ').', 'erreur');
+    return;
+  }
+  if (data.confirmation_en_attente) {
+    ajouter(data.reponse, 'confirmation');
+  } else if (data.ok === false) {
+    ajouter(data.reponse || data.message || 'Erreur.', 'erreur');
+  } else {
+    ajouter(data.reponse || '(reponse vide)', 'jarvis');
+  }
+}
+
+form.addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const texte = entree.value.trim();
+  if (!texte) return;
+  ajouter(texte, 'moi');
+  entree.value = '';
+  entree.disabled = true;
+  bouton.disabled = true;
+  try {
+    await envoyer(texte);
+  } catch (e) {
+    ajouter('Erreur reseau : ' + e, 'erreur');
+  } finally {
+    entree.disabled = false;
+    bouton.disabled = false;
+    entree.focus();
+  }
+});
+
+async function reinitialiser(){
+  await fetch('/api/chat/reset', {method: 'POST'});
+  fil.innerHTML = '';
+  ajouter('Nouvelle conversation.', 'systeme');
+}
+
+/* =================================================== onglets App / Liste */
+
+function msg(id, texte, classe){
+  const el = document.getElementById(id);
+  el.textContent = texte;
+  el.className = classe || '';
+}
+const msgListe = (texte, classe) => msg('liste-msg', texte, classe);
+
+async function chargerApps(){
+  const corps = document.getElementById('apps-corps');
+  corps.innerHTML = '<div style="color:var(--dim);grid-column:1/-1">Chargement...</div>';
+  try {
+    const r = await fetch('/api/apps', {headers: {}});
+    const data = await r.json();
+    if (!data.ok) { corps.innerHTML = ''; msgListe(data.message || 'Erreur.', 'erreur'); return; }
+    const apps = (data.apps || []).slice().sort((a, b) => a.nom.localeCompare(b.nom));
+    corps.innerHTML = '';
+    for (const a of apps) corps.appendChild(tuileApp(a.nom, a.chemin, a.installee));
+  } catch (e) {
+    corps.innerHTML = '';
+    msgListe('Erreur reseau : ' + e, 'erreur');
+  }
+}
+
+function tuileApp(nom, chemin, installee){
+  const div = document.createElement('div');
+  div.className = 'tuile' + (installee === false ? ' manquant' : '');
+
+  const spanNom = document.createElement('span');
+  spanNom.className = 'tuile-nom';
+  spanNom.textContent = nom;
+  div.appendChild(spanNom);
+
+  if (installee === false) {
+    const badge = document.createElement('span');
+    badge.className = 'tuile-badge';
+    badge.textContent = 'non installe';
+    div.appendChild(badge);
+  }
+
+  const hover = document.createElement('div');
+  hover.className = 'tuile-hover';
+
+  const btnSuppr = document.createElement('button');
+  btnSuppr.className = 'tuile-action suppr';
+  btnSuppr.type = 'button';
+  btnSuppr.textContent = 'Supprimer';
+  btnSuppr.onclick = () => supprimerApp(nom);
+  hover.appendChild(btnSuppr);
+
+  const btnModif = document.createElement('button');
+  btnModif.className = 'tuile-action modif';
+  btnModif.type = 'button';
+  btnModif.textContent = 'Modifier';
+  btnModif.onclick = () => modifierApp(nom, chemin);
+  hover.appendChild(btnModif);
+
+  div.appendChild(hover);
+  return div;
+}
+
+async function modifierApp(nom, cheminActuel){
+  const nouveau = prompt('Nouveau chemin / lien pour "' + nom + '" :', cheminActuel);
+  if (nouveau === null) return;
+  const chemin = nouveau.trim();
+  if (!chemin) { msgListe('Le chemin ne peut pas etre vide.', 'erreur'); return; }
+  try {
+    const r = await fetch('/api/apps', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({nom, chemin}),
+    });
+    const data = await r.json();
+    msgListe(data.message || (data.ok ? 'Modifie.' : 'Erreur.'), data.ok ? 'ok' : 'erreur');
+    if (data.ok) chargerApps();
+  } catch (e) {
+    msgListe('Erreur reseau : ' + e, 'erreur');
+  }
+}
+
+async function supprimerApp(nom){
+  try {
+    const r = await fetch('/api/apps/' + encodeURIComponent(nom), {method: 'DELETE'});
+    const data = await r.json();
+    msgListe(data.message || (data.ok ? 'Supprime.' : 'Erreur.'), data.ok ? 'ok' : 'erreur');
+    if (data.ok) chargerApps();
+  } catch (e) {
+    msgListe('Erreur reseau : ' + e, 'erreur');
+  }
+}
+
+/* =========================================================== onglet Scripts */
+
+const msgScripts = (texte, classe) => msg('scripts-msg', texte, classe);
+
+async function lancerRecherche(){
+  const bouton = document.getElementById('btn-rechercher');
+  const statut = document.getElementById('recherche-statut');
+  const corps = document.getElementById('recherche-corps');
+  bouton.disabled = true;
+  statut.textContent = 'Recherche en cours (Steam, Epic Games, menu Demarrer)...';
+  corps.innerHTML = '';
+  msgScripts('', '');
+  try {
+    const r = await fetch('/api/apps/recherche', {headers: {}});
+    const data = await r.json();
+    if (!data.ok) { statut.textContent = ''; msgScripts(data.message || 'Erreur.', 'erreur'); return; }
+    const candidats = data.candidats || [];
+    statut.textContent = candidats.length
+      ? `${candidats.length} candidat(s) trouve(s).`
+      : 'Rien de nouveau trouve.';
+    for (const c of candidats) corps.appendChild(ligneCandidat(c.nom, c.chemin, c.source));
+  } catch (e) {
+    statut.textContent = '';
+    msgScripts('Erreur reseau : ' + e, 'erreur');
+  } finally {
+    bouton.disabled = false;
+  }
+}
+
+function ligneCandidat(nom, chemin, source){
+  const div = document.createElement('div');
+  div.className = 'candidat';
+
+  const badge = document.createElement('span');
+  badge.className = 'candidat-source';
+  badge.textContent = source;
+  div.appendChild(badge);
+
+  const spanNom = document.createElement('span');
+  spanNom.className = 'candidat-nom';
+  spanNom.textContent = nom;
+  spanNom.title = nom;
+  div.appendChild(spanNom);
+
+  const spanChemin = document.createElement('span');
+  spanChemin.className = 'candidat-chemin';
+  spanChemin.textContent = chemin;
+  spanChemin.title = chemin;
+  div.appendChild(spanChemin);
+
+  const btnAjouter = document.createElement('button');
+  btnAjouter.className = 'candidat-ajouter';
+  btnAjouter.type = 'button';
+  btnAjouter.textContent = 'Ajouter';
+  btnAjouter.onclick = () => ajouterCandidat(nom, chemin, div, btnAjouter);
+  div.appendChild(btnAjouter);
+
+  return div;
+}
+
+async function ajouterCandidat(nom, chemin, ligne, bouton){
+  bouton.disabled = true;
+  try {
+    const r = await fetch('/api/apps', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({nom, chemin}),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      ligne.remove();
+      msgScripts(data.message || 'Ajoute.', 'ok');
+    } else {
+      msgScripts(data.message || 'Erreur.', 'erreur');
+      bouton.disabled = false;
+    }
+  } catch (e) {
+    msgScripts('Erreur reseau : ' + e, 'erreur');
+    bouton.disabled = false;
+  }
+}
+
+afficherOnglet('chat');
+</script>
+</body>
+</html>
